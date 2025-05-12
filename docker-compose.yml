@@ -5,10 +5,10 @@ services:
     build: .
     container_name: pebble-crypto-api
     ports:
-      - "8000:8000"
+      - "8000:${PORT:-8000}"
     env_file:
       - .env
     restart: unless-stopped
     volumes:
       - ./app:/code/app  # For development - enables live code reloading
-    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload 
+    command: uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000} --reload 

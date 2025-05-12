@@ -1,0 +1,16 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+I want you to write everything on this task.md, Roadmap on what you want to achieve and what you have done.
+
+
+You will be required to make edits in the projects, where necessary, and keep updating the task.md until we achieve everything we had intended to do;
+
+- Each file code should not exceed 250 - 280 lines of code, to be easier to maintain and make changes.
+
+- No need to have long and unnecessary comments, make relevant comments ONLY if there is need.
+
+Thank you.
+

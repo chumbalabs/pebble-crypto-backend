@@ -1,0 +1,17 @@
+fastapi
+uvicorn
+python-dotenv
+slowapi
+numpy
+scipy
+cachetools
+requests
+pandas
+google-generativeai
+httpx
+tenacity
+ta
+websockets
+scikit-learn
+matplotlib
+regex

@@ -1,0 +1,23 @@
+# Git
+.git
+.gitignore
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+.env
+
+# Editor directories and files
+.idea
+.vscode
+*.swp
+*.swo
+
+# Project specific
+.cursor/ 

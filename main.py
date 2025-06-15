@@ -12,10 +12,9 @@ from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 import logging
 from pydantic import BaseModel, Field
-from data import BinanceClient, SYMBOLS_CACHE, TICKER_CACHE
-from models import predictor
-from services.gemini_insights import GeminiInsightsGenerator
-from services.metrics import MetricsTracker
+from app.services.binance import BinanceClient, SYMBOLS_CACHE, TICKER_CACHE
+from app.core.prediction.technical import predictor
+from app.services.metrics import MetricsTracker
 from app.core.analysis.market_advisor import MarketAdvisor, MarketComparisonAnalyzer
 from app.core.ai.agent import MarketAgent
 
@@ -328,7 +327,6 @@ async def get_investment_advice(
         
         # Calculate RSI
         try:
-            from models import predictor
             rsi = predictor._calculate_rsi()
             technical_data["rsi"] = rsi
         except Exception as e:
@@ -489,7 +487,7 @@ class CryptoQueryResponse(BaseModel):
 market_agent = MarketAgent()
 
 @app.post("/api/ask", response_model=CryptoQueryResponse, tags=["AI Assistant"])
-@limiter.limit("20/minute")
+@limiter.limit("60/minute")
 async def process_crypto_query(
     request: Request,
     query_request: CryptoQueryRequest = Body(...),
@@ -590,6 +588,123 @@ async def _enhance_with_context(result: Dict[str, Any], context: Dict[str, Any])
                 result["response"] += "\n\nNote: Given your low risk tolerance, consider using tighter stop losses and taking smaller positions than suggested above."
     
     return result
+
+# Multi-Exchange Endpoints
+@app.get("/api/exchanges/health", tags=["Multi-Exchange"])
+@limiter.limit("30/minute")
+async def get_exchange_health(request: Request):
+    """
+    Get health status of all registered cryptocurrency exchanges.
+    
+    Returns information about:
+    - Exchange availability and response times
+    - Number of healthy vs unhealthy exchanges
+    - Last health check timestamps
+    - Exchange configurations
+    """
+    try:
+        health_data = await market_agent.get_exchange_health()
+        return health_data
+    except Exception as e:
+        logger.error(f"Exchange health error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get exchange health: {str(e)}")
+
+@app.post("/api/exchanges/best-prices", tags=["Multi-Exchange"])
+@limiter.limit("20/minute")
+async def find_best_prices(request: Request, symbols_request: Dict[str, List[str]] = Body(...)):
+    """
+    Find the best prices across all exchanges for multiple cryptocurrency symbols.
+    
+    Useful for:
+    - Arbitrage opportunity detection
+    - Price comparison across exchanges
+    - Finding the best exchange for trading
+    
+    Request body should contain a "symbols" field with a list of trading symbols.
+    Example: {"symbols": ["BTCUSDT", "ETHUSDT", "SOLUSDT"]}
+    """
+    try:
+        if "symbols" not in symbols_request or not symbols_request["symbols"]:
+            raise HTTPException(status_code=400, detail="Symbols list is required")
+            
+        if len(symbols_request["symbols"]) > 10:
+            raise HTTPException(status_code=400, detail="Maximum 10 symbols allowed per request")
+            
+        # Find best prices across exchanges
+        results = await market_agent.find_best_prices(symbols_request["symbols"])
+        
+        return results
+    except Exception as e:
+        logger.error(f"Best prices error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to find best prices: {str(e)}")
+
+@app.get("/api/exchanges/coverage", tags=["Multi-Exchange"])
+@limiter.limit("10/minute")
+async def get_exchange_coverage(request: Request):
+    """
+    Get information about exchange coverage and capabilities.
+    
+    Returns:
+    - List of supported exchanges
+    - Exchange priorities and configurations
+    - Estimated number of trading pairs per exchange
+    - Exchange specialties (derivatives, spot, etc.)
+    """
+    try:
+        coverage_info = {
+            "status": "success",
+            "exchanges": {
+                "binance": {
+                    "priority": 1,
+                    "specialty": "Primary exchange with highest liquidity",
+                    "estimated_pairs": 600,
+                    "features": ["spot", "futures", "options"],
+                    "rate_limit": "1200 requests/minute"
+                },
+                "kucoin": {
+                    "priority": 2,
+                    "specialty": "Early altcoin discovery and emerging tokens",
+                    "estimated_pairs": 800,
+                    "features": ["spot", "futures", "margin"],
+                    "rate_limit": "100 requests/minute"
+                },
+                "bybit": {
+                    "priority": 3,
+                    "specialty": "Derivatives and Asian market focus",
+                    "estimated_pairs": 400,
+                    "features": ["spot", "derivatives", "funding_rates"],
+                    "rate_limit": "120 requests/minute"
+                },
+                "gateio": {
+                    "priority": 4,
+                    "specialty": "Comprehensive coverage and new listings",
+                    "estimated_pairs": 1200,
+                    "features": ["spot", "margin", "new_listings"],
+                    "rate_limit": "200 requests/minute"
+                },
+                "bitget": {
+                    "priority": 5,
+                    "specialty": "Copy trading and emerging markets",
+                    "estimated_pairs": 500,
+                    "features": ["spot", "futures", "copy_trading"],
+                    "rate_limit": "150 requests/minute"
+                }
+            },
+            "total_estimated_pairs": 3500,
+            "capabilities": [
+                "Multi-exchange price comparison",
+                "Arbitrage opportunity detection", 
+                "Intelligent failover routing",
+                "Cross-exchange analytics",
+                "Real-time health monitoring"
+            ],
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        }
+        
+        return coverage_info
+    except Exception as e:
+        logger.error(f"Exchange coverage error: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to get exchange coverage: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(

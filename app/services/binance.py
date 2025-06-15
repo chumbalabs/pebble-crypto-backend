@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 # Load environment variables
 load_dotenv()
 BINANCE_API = os.getenv("BINANCE_API", "https://api.binance.com/api/v3")
-CACHE_TTL = int(os.getenv("CACHE_TTL", 300))
+CACHE_TTL = int(os.getenv("CACHE_TTL", "300").split("#")[0].strip())
 
 logger = logging.getLogger("CryptoPredictAPI")
 
@@ -153,6 +153,33 @@ class BinanceClient:
     async def fetch_tickers_async(self) -> List[dict]:
         """Asynchronously fetch 24h ticker data"""
         return await asyncio.to_thread(self.fetch_tickers)
+    
+    async def get_ticker(self, symbol: str) -> Optional[Dict]:
+        """Get ticker data for a specific symbol"""
+        try:
+            response = await asyncio.to_thread(
+                requests.get,
+                f"{BINANCE_API}/ticker/24hr",
+                params={"symbol": symbol},
+                timeout=5
+            )
+            response.raise_for_status()
+            
+            data = response.json()
+            return {
+                "symbol": symbol,
+                "price": float(data["lastPrice"]),
+                "bid": float(data["bidPrice"]) if data["bidPrice"] else 0,
+                "ask": float(data["askPrice"]) if data["askPrice"] else 0,
+                "high24h": float(data["highPrice"]) if data["highPrice"] else 0,
+                "low24h": float(data["lowPrice"]) if data["lowPrice"] else 0,
+                "volume24h": float(data["volume"]) if data["volume"] else 0,
+                "priceChangePercent": float(data["priceChangePercent"]) if data["priceChangePercent"] else 0,
+            }
+                
+        except Exception as e:
+            logger.error(f"Binance ticker fetch error for {symbol}: {str(e)}")
+            return None
         
     def search_symbols(self, search_term: str, quote_asset: Optional[str] = None) -> List[str]:
         """Search for symbols matching a search term and optional quote asset"""

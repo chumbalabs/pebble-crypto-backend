@@ -177,7 +177,14 @@ class TechnicalAnalyzer:
 
 class AdvancedPredictor:
     def __init__(self):
-        self.gemini = GeminiInsightsGenerator()
+        # Initialize AI insights generator (optional)
+        try:
+            self.gemini = GeminiInsightsGenerator()
+            self.gemini_available = True
+        except Exception as e:
+            logger.warning(f"Gemini AI not available: {str(e)}")
+            self.gemini = None
+            self.gemini_available = False
         # Reduce TTL to 60 seconds to ensure more frequent refreshes
         self.analysis_cache = TTLCache(maxsize=500, ttl=60)
         self.prices = []
@@ -475,24 +482,43 @@ class AdvancedPredictor:
                     "confidence_factors": {"data_quality": data_points/100, "trend_strength": 0, "volume_confidence": 0.5}
                 }
             
-            # Get AI insights with confidence weighting
-            try:
-                gemini_analysis = await asyncio.to_thread(
-                    self.gemini.generate_analysis,
-                    {
-                        "current_price": float(prices[-1]),
-                        **self.indicators,
-                        "data_quality": min(0.99, len(prices)/100),
-                        "interval": interval
+            # Get AI insights with confidence weighting (if available)
+            if self.gemini_available and self.gemini:
+                try:
+                    gemini_analysis = await asyncio.to_thread(
+                        self.gemini.generate_analysis,
+                        {
+                            "current_price": float(prices[-1]),
+                            **self.indicators,
+                            "data_quality": min(0.99, len(prices)/100),
+                            "interval": interval
+                        }
+                    )
+                except Exception as e:
+                    logger.error(f"Gemini analysis failed: {str(e)}")
+                    gemini_analysis = {
+                        "market_summary": "AI analysis temporarily unavailable",
+                        "technical_observations": ["Technical indicators show current market conditions"],
+                        "trading_recommendations": ["Monitor technical indicators for trading signals"],
+                        "risk_factors": ["Market volatility and external factors"]
                     }
-                )
-            except Exception as e:
-                logger.error(f"Gemini analysis failed: {str(e)}")
+            else:
+                # Fallback analysis without AI
                 gemini_analysis = {
-                    "market_summary": "Insufficient historical data for comprehensive AI analysis",
-                    "technical_observations": ["Limited price history available"],
-                    "trading_recommendations": ["Monitor for more data points"],
-                    "risk_factors": ["Limited historical context"]
+                    "market_summary": f"Technical analysis shows current price at ${float(prices[-1]):.4f}",
+                    "technical_observations": [
+                        f"RSI at {self.indicators['rsi']:.1f} indicating {'overbought' if self.indicators['rsi'] > 70 else 'oversold' if self.indicators['rsi'] < 30 else 'neutral'} conditions",
+                        f"Price volatility at {self.indicators['volatility']*100:.2f}%",
+                        f"Current trend shows {'bullish' if self.indicators['key_levels']['trend_strength'] > 0 else 'bearish'} momentum"
+                    ],
+                    "trading_recommendations": [
+                        "Monitor key support and resistance levels",
+                        "Consider risk management strategies"
+                    ],
+                    "risk_factors": [
+                        "Market volatility may affect price movements",
+                        "External market conditions should be considered"
+                    ]
                 }
 
             result = {
